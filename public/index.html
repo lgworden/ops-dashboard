@@ -335,7 +335,81 @@
   }
   .footer-bar button:hover{background:#fff;color:var(--ink);}
   [contenteditable]:focus{background:#fffef2;}
+
+  #login-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(18,59,69,.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+  }
+  .login-card{
+    background:var(--paper);
+    border-radius:12px;
+    padding:28px 32px;
+    max-width:360px;
+    width:90%;
+    box-shadow:0 10px 40px rgba(0,0,0,.25);
+    font-family:"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .login-card h2{margin:0 0 6px;font-size:18px;color:var(--teal-deep);}
+  .login-card p{margin:0 0 16px;font-size:13px;color:var(--muted);}
+  .login-card input{
+    width:100%;
+    padding:9px 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:14px;
+    box-sizing:border-box;
+  }
+  .login-error{color:#c0392b;font-size:12px;margin-top:6px;min-height:14px;}
+  .login-card button{
+    margin-top:14px;
+    width:100%;
+    padding:10px;
+    background:var(--teal);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .login-card button:hover{background:var(--teal-deep);}
+  .login-card button:disabled{opacity:.6;cursor:default;}
+
+  #toast{
+    position:fixed;
+    top:20px;
+    right:20px;
+    background:var(--teal-deep);
+    color:#fff;
+    padding:12px 18px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:600;
+    box-shadow:0 6px 20px rgba(0,0,0,.2);
+    opacity:0;
+    transform:translateY(-8px);
+    transition:opacity .25s, transform .25s;
+    pointer-events:none;
+    z-index:1100;
+    font-family:"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
 </style>
+
+<div id="login-overlay">
+  <div class="login-card">
+    <h2>Sign in to the dashboard</h2>
+    <p>Enter your Deloitte email to continue.</p>
+    <input id="login-email-input" type="email" placeholder="you@deloitte.com" autocomplete="email">
+    <div class="login-error" id="login-error"></div>
+    <button id="login-submit-btn" type="button">Continue</button>
+  </div>
+</div>
+<div id="toast"></div>
 
 <div id="ops-root">
   <div class="frame">
@@ -578,6 +652,75 @@
 
   function setStatus(msg){ statusEl.textContent = msg; }
 
+  const EMAIL_STORAGE_KEY = "ops-dashboard-email";
+  const EMAIL_RE = /^[^\s@]+@deloitte\.com$/i;
+  const loginOverlay = document.getElementById("login-overlay");
+  const loginInput = document.getElementById("login-email-input");
+  const loginError = document.getElementById("login-error");
+  const loginBtn = document.getElementById("login-submit-btn");
+  const toastEl = document.getElementById("toast");
+  let pollTimer = null;
+
+  function showToast(message, duration){
+    toastEl.textContent = message;
+    toastEl.style.opacity = "1";
+    toastEl.style.transform = "translateY(0)";
+    clearTimeout(toastEl._hideTimer);
+    toastEl._hideTimer = setTimeout(()=>{
+      toastEl.style.opacity = "0";
+      toastEl.style.transform = "translateY(-8px)";
+    }, duration || 2500);
+  }
+
+  function startPolling(){
+    if(pollTimer) return;
+    pollTimer = setInterval(pollForUpdates, 5000);
+  }
+
+  function getSavedEmail(){
+    try{ return localStorage.getItem(EMAIL_STORAGE_KEY); }catch(e){ return null; }
+  }
+  function saveEmail(email){
+    try{ localStorage.setItem(EMAIL_STORAGE_KEY, email); }catch(e){}
+  }
+
+  async function submitLogin(){
+    const email = loginInput.value.trim().toLowerCase();
+    if(!EMAIL_RE.test(email)){
+      loginError.textContent = "Please use your @deloitte.com email address.";
+      return;
+    }
+    loginError.textContent = "";
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Signing in…";
+    try{
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({email})
+      });
+      const body = await res.json().catch(()=>({}));
+      if(!res.ok){
+        loginError.textContent = body.error || "Something went wrong. Try again.";
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Continue";
+        return;
+      }
+      saveEmail(email);
+      loginOverlay.style.display = "none";
+      showToast("Welcome!", 2000);
+      loadData();
+      startPolling();
+    }catch(e){
+      loginError.textContent = "Couldn't reach the server. Try again.";
+      loginBtn.disabled = false;
+      loginBtn.textContent = "Continue";
+    }
+  }
+
+  loginBtn.addEventListener("click", submitLogin);
+  loginInput.addEventListener("keydown", (e)=>{ if(e.key === "Enter"){ e.preventDefault(); submitLogin(); } });
+
   async function loadData(){
     try{
       const res = await fetch("/api/dashboard");
@@ -635,11 +778,11 @@
           migrateData(data);
           render();
           setStatus("Synced — shared with your team");
+          showToast("Updated by a teammate", 2500);
         }
       }
     }catch(e){ /* transient network error, ignore */ }
   }
-  setInterval(pollForUpdates, 5000);
 
   function highlightOwner(text){
     // bold every parenthetical mention, e.g. "(Dave)" or "(TBD - Brandon)"
@@ -862,7 +1005,14 @@
     render();
   });
 
-  loadData();
+  const savedEmail = getSavedEmail();
+  if(savedEmail && EMAIL_RE.test(savedEmail)){
+    loginOverlay.style.display = "none";
+    loadData();
+    startPolling();
+  } else {
+    loginOverlay.style.display = "flex";
+  }
 })();
 </script>
 </body>
