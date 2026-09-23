@@ -222,7 +222,6 @@
     color:var(--done);
     text-decoration:line-through;
   }
-  .item-owner{color:#1e3a8a;font-weight:700;}
   .item-meta{
     display:flex;
     align-items:center;
@@ -255,6 +254,26 @@
     border:1px solid var(--border);
     border-radius:6px;
     padding:1px 4px;
+  }
+  .owner-pill{
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.02em;
+    border-radius:20px;
+    padding:1px 8px;
+    border:1px solid #c7d3f0;
+    background:#eef1fb;
+    color:#1e3a8a;
+    cursor:pointer;
+    line-height:1.5;
+  }
+  .owner-pill.none{background:transparent;border-style:dashed;color:var(--muted);border-color:var(--border);}
+  .owner-input{
+    font-size:10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:1px 4px;
+    width:90px;
   }
   .row-actions{
     display:flex;
@@ -291,20 +310,6 @@
     margin-top:2px;
   }
   .add-item-btn:hover{background:var(--teal-tint);}
-
-  .badge{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    width:20px;height:20px;
-    border-radius:50%;
-    background:#fff;
-    color:#1a9e77;
-    font-weight:800;
-    font-size:11px;
-    flex-shrink:0;
-    border:1.5px solid #1a9e77;
-  }
 
   .section-divider{
     font-size:13px;
@@ -405,6 +410,7 @@
     <h2>Sign in to the dashboard</h2>
     <p>Enter your Deloitte email to continue.</p>
     <input id="login-email-input" type="email" placeholder="you@deloitte.com" autocomplete="email">
+    <input id="login-password-input" type="password" placeholder="Password" autocomplete="new-password" style="display:none;margin-top:8px;">
     <div class="login-error" id="login-error"></div>
     <button id="login-submit-btn" type="button">Continue</button>
   </div>
@@ -440,7 +446,7 @@
       </div>
 
       <div class="grid" id="grid-row1"></div>
-      <div class="section-divider">Operations Updates and Action Items</div>
+      <div class="section-divider">PMO Items</div>
       <div class="grid" id="grid-row2"></div>
       <div class="grid" id="grid-row3"></div>
       <div class="section-divider">Initiative Updates</div>
@@ -489,6 +495,7 @@
   function ensureItemDefaults(item){
     if(item.createdAt === undefined) item.createdAt = todayISO();
     if(item.due === undefined) item.due = null;
+    if(item.owner === undefined) item.owner = null;
     if(item.sub){ item.sub.forEach(ensureItemDefaults); }
   }
   function migrateData(d){
@@ -525,7 +532,7 @@
           ]
         },
         {
-          id: uid(), title: "Ready for Approval", tone: "gold", badge:"G",
+          id: uid(), title: "Ready for Approval", tone: "gold",
           items: [
             {id:uid(), text:"Lab playbook", done:false, due:null, createdAt:"2026-09-21", sub:[]},
             {id:uid(), text:"Strategy session deck for 9/24", done:false, due:"2026-09-24", createdAt:"2026-09-21", sub:[]}
@@ -656,6 +663,7 @@
   const EMAIL_RE = /^[^\s@]+@deloitte\.com$/i;
   const loginOverlay = document.getElementById("login-overlay");
   const loginInput = document.getElementById("login-email-input");
+  const loginPasswordInput = document.getElementById("login-password-input");
   const loginError = document.getElementById("login-error");
   const loginBtn = document.getElementById("login-submit-btn");
   const toastEl = document.getElementById("toast");
@@ -697,11 +705,15 @@
       const res = await fetch("/api/login", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({email})
+        body: JSON.stringify({email, password: loginPasswordInput.value})
       });
       const body = await res.json().catch(()=>({}));
       if(!res.ok){
         loginError.textContent = body.error || "Something went wrong. Try again.";
+        if(body.passwordRequired){
+          loginPasswordInput.style.display = "block";
+          loginPasswordInput.focus();
+        }
         loginBtn.disabled = false;
         loginBtn.textContent = "Continue";
         return;
@@ -720,6 +732,7 @@
 
   loginBtn.addEventListener("click", submitLogin);
   loginInput.addEventListener("keydown", (e)=>{ if(e.key === "Enter"){ e.preventDefault(); submitLogin(); } });
+  loginPasswordInput.addEventListener("keydown", (e)=>{ if(e.key === "Enter"){ e.preventDefault(); submitLogin(); } });
 
   async function loadData(){
     try{
@@ -778,16 +791,9 @@
           migrateData(data);
           render();
           setStatus("Synced — shared with your team");
-          showToast("Updated by a teammate", 2500);
         }
       }
     }catch(e){ /* transient network error, ignore */ }
-  }
-
-  function highlightOwner(text){
-    // bold every parenthetical mention, e.g. "(Dave)" or "(TBD - Brandon)"
-    const esc = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    return esc.replace(/\(([^()]+)\)/g, '<span class="item-owner">($1)</span>');
   }
 
   function makeItemRow(item, onDeleted){
@@ -810,13 +816,12 @@
     const text = document.createElement("div");
     text.className = "item-text";
     text.contentEditable = "true";
-    text.innerHTML = highlightOwner(item.text);
-    text.addEventListener("focus", ()=>{ text.textContent = item.text; });
+    text.textContent = item.text;
     text.addEventListener("blur", ()=>{
       const val = text.textContent.trim();
       if(val === ""){ return; }
       item.text = val;
-      text.innerHTML = highlightOwner(item.text);
+      text.textContent = item.text;
       scheduleSave();
     });
     text.addEventListener("keydown", (e)=>{
@@ -864,6 +869,41 @@
     meta.appendChild(duePill);
     meta.appendChild(dueInput);
 
+    const ownerPill = document.createElement("button");
+    ownerPill.type = "button";
+    ownerPill.className = "owner-pill" + (item.owner ? "" : " none");
+    ownerPill.textContent = item.owner ? item.owner : "+ Owner";
+
+    const ownerInput = document.createElement("input");
+    ownerInput.type = "text";
+    ownerInput.className = "owner-input";
+    ownerInput.style.display = "none";
+    ownerInput.placeholder = "Name";
+    if(item.owner) ownerInput.value = item.owner;
+
+    ownerPill.addEventListener("click", ()=>{
+      ownerPill.style.display = "none";
+      ownerInput.style.display = "inline-block";
+      ownerInput.focus();
+      ownerInput.select();
+    });
+    function commitOwner(){
+      const val = ownerInput.value.trim();
+      item.owner = val || null;
+      ownerPill.textContent = item.owner ? item.owner : "+ Owner";
+      ownerPill.className = "owner-pill" + (item.owner ? "" : " none");
+      ownerInput.style.display = "none";
+      ownerPill.style.display = "inline-block";
+      scheduleSave();
+    }
+    ownerInput.addEventListener("blur", commitOwner);
+    ownerInput.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter"){ e.preventDefault(); ownerInput.blur(); }
+    });
+
+    meta.appendChild(ownerPill);
+    meta.appendChild(ownerInput);
+
     main.appendChild(text);
     main.appendChild(meta);
 
@@ -876,7 +916,7 @@
     addSubBtn.textContent = "↳+";
     addSubBtn.addEventListener("click", ()=>{
       item.sub = item.sub || [];
-      item.sub.push({id:uid(), text:"New sub-item", done:false, due:null, createdAt:todayISO()});
+      item.sub.push({id:uid(), text:"New sub-item", done:false, due:null, owner:null, createdAt:todayISO()});
       scheduleSave();
       render();
     });
@@ -934,13 +974,6 @@
     headText.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){e.preventDefault(); headText.blur();} });
     head.appendChild(headText);
 
-    if(section.badge){
-      const b = document.createElement("span");
-      b.className = "badge";
-      b.textContent = section.badge;
-      head.appendChild(b);
-    }
-
     const body = document.createElement("div");
     body.className = "card-body";
 
@@ -951,7 +984,7 @@
     addBtn.className = "add-item-btn";
     addBtn.textContent = "+ Add item";
     addBtn.addEventListener("click", ()=>{
-      section.items.push({id:uid(), text:"New item", done:false, due:null, createdAt:todayISO(), sub:[]});
+      section.items.push({id:uid(), text:"New item", done:false, due:null, owner:null, createdAt:todayISO(), sub:[]});
       scheduleSave();
       render();
     });

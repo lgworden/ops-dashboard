@@ -73,10 +73,26 @@ You said GitHub isn't set up yet for this project, so here's the from-scratch pa
 After that, any future change you want to make: edit the code, commit, and
 `git push` — Railway auto-redeploys on every push to `main`.
 
+## Access
+
+- Anyone opening the dashboard must enter a `@deloitte.com` email. It's
+  remembered per browser (via `localStorage`), so it only asks once per
+  device.
+- Every unique email is recorded in `dashboard_users` (Postgres) or
+  `users.local.json` (local dev), with first-seen/last-seen timestamps and a
+  visit count.
+- The **first time** a given email is used, it also has to enter a shared
+  team password (this isn't per-person — it's one password everyone on the
+  team knows, just to keep random people from typing in *any* `@deloitte.com`
+  address). Default: `harbor-otter-velvet7`. To change it without touching
+  code, set a `NEW_USER_PASSWORD` environment variable on the Railway
+  service. Once an email has logged in successfully once, it never needs the
+  password again on any device.
+
 ## Notes
 
 - The "Reset to original" button in the footer resets the shared dashboard
   for **everyone**, not just you.
-- There's no login/auth — anyone with the URL can edit. If you need to
-  restrict access, that's a follow-up (e.g. a shared password gate or
-  Railway's built-in access controls) — just ask.
+- Beyond the password on first login, there's no per-user auth — anyone who
+  knows a valid email + the shared password can edit. That's intentional for
+  a lightweight team tool; ask if you ever need stricter access control.

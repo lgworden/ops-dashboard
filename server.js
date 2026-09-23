@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const ALLOWED_EMAIL_DOMAIN = "deloitte.com";
 const EMAIL_RE = new RegExp(`^[^\\s@]+@${ALLOWED_EMAIL_DOMAIN.replace(".", "\\.")}$`, "i");
+const NEW_USER_PASSWORD = process.env.NEW_USER_PASSWORD || "harbor-otter-velvet7";
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -49,6 +50,11 @@ if (DATABASE_URL) {
         [data]
       );
     },
+    async hasUser(email) {
+      await ready;
+      const { rows } = await pool.query("SELECT 1 FROM dashboard_users WHERE email = $1", [email]);
+      return rows.length > 0;
+    },
     async logUser(email) {
       await ready;
       await pool.query(
@@ -70,6 +76,10 @@ if (DATABASE_URL) {
     },
     async save(data) {
       fs.writeFileSync(DATA_FILE, JSON.stringify(data));
+    },
+    async hasUser(email) {
+      const users = fs.existsSync(USERS_FILE) ? JSON.parse(fs.readFileSync(USERS_FILE, "utf8")) : {};
+      return Object.prototype.hasOwnProperty.call(users, email);
     },
     async logUser(email) {
       const users = fs.existsSync(USERS_FILE) ? JSON.parse(fs.readFileSync(USERS_FILE, "utf8")) : {};
@@ -108,10 +118,18 @@ app.put("/api/dashboard", async (req, res) => {
 
 app.post("/api/login", async (req, res) => {
   const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+  const password = String((req.body && req.body.password) || "");
   if (!EMAIL_RE.test(email)) {
     return res.status(400).json({ error: `Please use your @${ALLOWED_EMAIL_DOMAIN} email address.` });
   }
   try {
+    const known = await store.hasUser(email);
+    if (!known && password !== NEW_USER_PASSWORD) {
+      const message = password
+        ? "Incorrect password. Try again."
+        : "New here? Enter the password your team shared with you to continue.";
+      return res.status(401).json({ error: message, passwordRequired: true });
+    }
     await store.logUser(email);
     res.json({ ok: true, email });
   } catch (err) {
