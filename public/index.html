@@ -131,13 +131,17 @@
     border-radius:8px;
     padding:10px 14px;
     min-height:20px;
-    cursor:text;
   }
-  .priority-text:empty:before{
-    content: attr(data-placeholder);
-    color:#b7a56b;
+  .today-list{
+    list-style:disc;
+    margin:0;
+    padding-left:18px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
   }
-  .priority-text:focus{outline:2px solid var(--gold);outline-offset:1px;}
+  .today-list li{font-size:13px;color:var(--ink);}
+  .today-empty{color:#b7a56b;font-size:13px;}
 
   .grid{
     display:grid;
@@ -177,6 +181,11 @@
     cursor:text;
     outline:none;
     flex:1;
+  }
+  .card-head[data-tone="teal"] .head-text:focus,
+  .card-head[data-tone="green"] .head-text:focus,
+  .card-head[data-tone="blue"] .head-text:focus{
+    background:rgba(0,0,0,.28);
   }
   .card-body{
     padding:12px 14px 14px;
@@ -441,8 +450,8 @@
       </div>
 
       <div class="priority-block">
-        <div class="priority-heading">Top Priority</div>
-        <div class="priority-text" id="priority-text" contenteditable="true" data-placeholder="Add this week's top priority..."></div>
+        <div class="priority-heading">Today's Action Items</div>
+        <div class="priority-text" id="today-actions"></div>
       </div>
 
       <div class="grid" id="grid-row1"></div>
@@ -512,7 +521,6 @@
       title: "Operations Work Plan Dashboard",
       week: "Week of Sept 21",
       lead: "Belle",
-      priority: "",
       row1: [
         {
           id: uid(), title: "Discussion Items", tone: "gold",
@@ -1005,25 +1013,56 @@
     const titleEl = document.getElementById("title-text");
     const weekEl = document.getElementById("week-text");
     const leadEl = document.getElementById("lead-name");
-    const priorityEl = document.getElementById("priority-text");
 
     titleEl.textContent = data.title;
     weekEl.textContent = "— " + data.week;
     leadEl.textContent = data.lead;
-    priorityEl.textContent = data.priority;
 
     titleEl.addEventListener("blur", ()=>{ data.title = titleEl.textContent.trim(); scheduleSave(); });
     weekEl.addEventListener("blur", ()=>{ data.week = weekEl.textContent.replace(/^—\s*/,"").trim(); scheduleSave(); });
     leadEl.addEventListener("blur", ()=>{ data.lead = leadEl.textContent.trim(); scheduleSave(); });
-    priorityEl.addEventListener("blur", ()=>{ data.priority = priorityEl.textContent.trim(); scheduleSave(); });
 
-    [titleEl, weekEl, leadEl, priorityEl].forEach(el=>{
+    [titleEl, weekEl, leadEl].forEach(el=>{
       el.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); el.blur(); } });
     });
   }
 
+  function collectDueToday(items, today, out){
+    (items || []).forEach(item=>{
+      if(item.due === today && !item.done){ out.push(item); }
+      if(item.sub && item.sub.length){ collectDueToday(item.sub, today, out); }
+    });
+  }
+
+  function renderTodayActions(){
+    const container = document.getElementById("today-actions");
+    const today = todayISO();
+    const items = [];
+    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+      (data[rowKey] || []).forEach(section=>{ collectDueToday(section.items, today, items); });
+    });
+
+    container.innerHTML = "";
+    if(items.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "today-empty";
+      empty.textContent = "Nothing due today.";
+      container.appendChild(empty);
+      return;
+    }
+    const ul = document.createElement("ul");
+    ul.className = "today-list";
+    items.forEach(item=>{
+      const li = document.createElement("li");
+      li.textContent = item.owner ? `${item.text} — ${item.owner}` : item.text;
+      ul.appendChild(li);
+    });
+    container.appendChild(ul);
+  }
+
   function render(){
     bindTopFields();
+    renderTodayActions();
     renderGrid("grid-row1", data.row1);
     renderGrid("grid-row2", data.row2);
     renderGrid("grid-row3", data.row3);
