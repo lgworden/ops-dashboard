@@ -89,6 +89,21 @@ After that, any future change you want to make: edit the code, commit, and
   service. Once an email has logged in successfully once, it never needs the
   password again on any device.
 
+## Exporting action items
+
+The "Export Action Items" button (footer bar) opens a modal that pulls every
+open (not checked off) item from the whole board and groups it by owner or
+by due date. From there you can:
+
+- **Download as Word (.docx)** — generated server-side (`POST
+  /api/export/docx`, using the `docx` npm package) and downloaded straight
+  to your machine.
+- **Open in Email** — builds a `mailto:` link with the grouped list in the
+  body and hands it to your OS's default mail client as a draft; nothing is
+  sent automatically. Very long lists can get truncated by some mail apps
+  (Outlook included) since `mailto:` links have a length limit — the Word
+  download always has the complete list regardless of size.
+
 ## Notes
 
 - The "Reset to original" button in the footer resets the shared dashboard

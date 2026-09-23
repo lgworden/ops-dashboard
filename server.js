@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const { Document, Packer, Paragraph, HeadingLevel } = require("docx");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -135,6 +136,42 @@ app.post("/api/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to log in" });
+  }
+});
+
+app.post("/api/export/docx", async (req, res) => {
+  try {
+    const { title, subtitle, groups } = req.body || {};
+    const children = [
+      new Paragraph({ text: String(title || "Action Items"), heading: HeadingLevel.TITLE }),
+    ];
+    if (subtitle) {
+      children.push(new Paragraph({ text: String(subtitle), heading: HeadingLevel.HEADING_3 }));
+    }
+    (groups || []).forEach((group) => {
+      children.push(
+        new Paragraph({
+          text: String(group.heading || ""),
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 300 },
+        })
+      );
+      (group.items || []).forEach((line) => {
+        children.push(new Paragraph({ text: String(line), bullet: { level: 0 } }));
+      });
+    });
+
+    const doc = new Document({ sections: [{ children }] });
+    const buffer = await Packer.toBuffer(doc);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    res.setHeader("Content-Disposition", 'attachment; filename="action-items.docx"');
+    res.send(buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate document" });
   }
 });
 
