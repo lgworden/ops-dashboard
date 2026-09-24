@@ -227,10 +227,6 @@
     word-break:break-word;
     white-space:pre-line;
   }
-  .item-row.done .item-text{
-    color:var(--done);
-    text-decoration:line-through;
-  }
   .item-meta{
     display:flex;
     align-items:center;
@@ -305,6 +301,8 @@
   .icon-btn:hover{background:#fff;color:#c0392b;}
   .add-sub-btn{color:var(--teal);}
   .add-sub-btn:hover{color:var(--teal-deep);background:#fff;}
+  .archive-btn{color:var(--muted);}
+  .archive-btn:hover{color:var(--teal-deep);background:#fff;}
 
   .add-item-btn{
     align-self:flex-start;
@@ -329,6 +327,50 @@
     padding-top:8px;
     margin:4px 0 4px;
   }
+
+  .archive-section{margin-top:6px;display:flex;flex-direction:column;gap:10px;}
+  .archive-details{
+    border:1px solid var(--border);
+    border-radius:9px;
+    background:var(--paper);
+    padding:2px 14px;
+  }
+  .archive-summary{
+    cursor:pointer;
+    font-size:13px;
+    font-weight:700;
+    color:var(--teal-deep);
+    padding:10px 0;
+    list-style:none;
+  }
+  .archive-summary::-webkit-details-marker{display:none;}
+  .archive-list{display:flex;flex-direction:column;gap:6px;padding:2px 0 12px;}
+  .archive-empty{font-size:12px;color:var(--muted);padding:2px 0 12px;}
+  .archive-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    padding:6px 8px;
+    border-radius:6px;
+    background:var(--canvas);
+  }
+  .archive-row-main{flex:1;min-width:0;}
+  .archive-row-text{font-size:13px;color:var(--ink);}
+  .archive-row-text.is-done{color:var(--done);text-decoration:line-through;}
+  .archive-row-meta{font-size:10px;color:var(--muted);margin-top:2px;}
+  .archive-reopen-btn{
+    font-size:11px;
+    font-weight:600;
+    color:var(--teal);
+    background:none;
+    border:1px solid var(--teal-line);
+    border-radius:6px;
+    padding:4px 9px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .archive-reopen-btn:hover{background:var(--teal-tint);color:var(--teal-deep);}
 
   .footer-bar{
     display:flex;
@@ -541,6 +583,17 @@
       <div class="grid" id="grid-row4"></div>
       <div class="grid" id="grid-row5"></div>
 
+      <div class="archive-section">
+        <details class="archive-details" id="completed-details">
+          <summary class="archive-summary">Completed Items (<span id="completed-count">0</span>)</summary>
+          <div class="archive-list" id="completed-list"></div>
+        </details>
+        <details class="archive-details" id="archived-details">
+          <summary class="archive-summary">Archived Items (<span id="archived-count">0</span>)</summary>
+          <div class="archive-list" id="archived-list"></div>
+        </details>
+      </div>
+
       <div class="footer-bar">
         <span id="status-text">Loading…</span>
         <div style="display:flex;gap:8px;">
@@ -591,6 +644,7 @@
     if(item.createdAt === undefined) item.createdAt = todayISO();
     if(item.due === undefined) item.due = null;
     if(item.owner === undefined) item.owner = null;
+    if(item.archived === undefined) item.archived = false;
     if(item.sub){ item.sub.forEach(ensureItemDefaults); }
   }
   function migrateData(d){
@@ -892,16 +946,17 @@
 
   function makeItemRow(item, onDeleted){
     const li = document.createElement("li");
-    li.className = "item-row" + (item.done ? " done" : "");
+    li.className = "item-row";
     li.dataset.id = item.id;
 
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = !!item.done;
+    cb.title = "Mark complete";
     cb.addEventListener("change", ()=>{
       item.done = cb.checked;
-      li.classList.toggle("done", item.done);
       scheduleSave();
+      render();
     });
 
     const main = document.createElement("div");
@@ -1010,7 +1065,17 @@
     addSubBtn.textContent = "↳+";
     addSubBtn.addEventListener("click", ()=>{
       item.sub = item.sub || [];
-      item.sub.push({id:uid(), text:"New sub-item", done:false, due:null, owner:null, createdAt:todayISO()});
+      item.sub.push({id:uid(), text:"New sub-item", done:false, due:null, owner:null, archived:false, createdAt:todayISO()});
+      scheduleSave();
+      render();
+    });
+
+    const archiveBtn = document.createElement("button");
+    archiveBtn.className = "icon-btn archive-btn";
+    archiveBtn.title = "Archive";
+    archiveBtn.textContent = "🗄";
+    archiveBtn.addEventListener("click", ()=>{
+      item.archived = true;
       scheduleSave();
       render();
     });
@@ -1026,6 +1091,7 @@
     });
 
     actions.appendChild(addSubBtn);
+    actions.appendChild(archiveBtn);
     actions.appendChild(delBtn);
 
     li.appendChild(cb);
@@ -1039,6 +1105,7 @@
     const ul = document.createElement("ul");
     ul.className = "item-list" + (depth > 0 ? " sub" : "");
     items.forEach((item, idx)=>{
+      if(item.done || item.archived){ return; }
       const row = makeItemRow(item, ()=>{ items.splice(idx,1); });
       ul.appendChild(row);
       if(item.sub && item.sub.length){
@@ -1078,7 +1145,7 @@
     addBtn.className = "add-item-btn";
     addBtn.textContent = "+ Add item";
     addBtn.addEventListener("click", ()=>{
-      section.items.push({id:uid(), text:"New item", done:false, due:null, owner:null, createdAt:todayISO(), sub:[]});
+      section.items.push({id:uid(), text:"New item", done:false, due:null, owner:null, archived:false, createdAt:todayISO(), sub:[]});
       scheduleSave();
       render();
     });
@@ -1115,7 +1182,7 @@
 
   function collectDueToday(items, today, out){
     (items || []).forEach(item=>{
-      if(item.due === today && !item.done){ out.push(item); }
+      if(item.due === today && !item.done && !item.archived){ out.push(item); }
       if(item.sub && item.sub.length){ collectDueToday(item.sub, today, out); }
     });
   }
@@ -1146,6 +1213,81 @@
     container.appendChild(ul);
   }
 
+  function collectCompleted(items, sectionTitle, out){
+    (items || []).forEach(item=>{
+      if(item.done && !item.archived){ out.push({ item, section: sectionTitle }); }
+      if(item.sub && item.sub.length){ collectCompleted(item.sub, sectionTitle, out); }
+    });
+  }
+
+  function collectArchived(items, sectionTitle, out){
+    (items || []).forEach(item=>{
+      if(item.archived){ out.push({ item, section: sectionTitle }); }
+      if(item.sub && item.sub.length){ collectArchived(item.sub, sectionTitle, out); }
+    });
+  }
+
+  function renderArchiveList(containerId, countId, entries, onReopen, emptyText){
+    const container = document.getElementById(containerId);
+    document.getElementById(countId).textContent = entries.length;
+    container.innerHTML = "";
+    if(entries.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "archive-empty";
+      empty.textContent = emptyText;
+      container.appendChild(empty);
+      return;
+    }
+    entries.forEach(({item, section})=>{
+      const row = document.createElement("div");
+      row.className = "archive-row";
+
+      const main = document.createElement("div");
+      main.className = "archive-row-main";
+
+      const text = document.createElement("div");
+      text.className = "archive-row-text" + (item.done ? " is-done" : "");
+      text.textContent = item.text;
+
+      const meta = document.createElement("div");
+      meta.className = "archive-row-meta";
+      const metaParts = [section];
+      if(item.owner) metaParts.push(item.owner);
+      if(item.due) metaParts.push(formatShortDate(item.due));
+      meta.textContent = metaParts.join(" · ");
+
+      main.appendChild(text);
+      main.appendChild(meta);
+
+      const reopenBtn = document.createElement("button");
+      reopenBtn.className = "archive-reopen-btn";
+      reopenBtn.type = "button";
+      reopenBtn.textContent = "Reopen";
+      reopenBtn.addEventListener("click", ()=>{
+        onReopen(item);
+        scheduleSave();
+        render();
+      });
+
+      row.appendChild(main);
+      row.appendChild(reopenBtn);
+      container.appendChild(row);
+    });
+  }
+
+  function renderArchiveSections(){
+    const completed = [];
+    const archived = [];
+    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+      (data[rowKey] || []).forEach(section=>{
+        collectCompleted(section.items, section.title, completed);
+        collectArchived(section.items, section.title, archived);
+      });
+    });
+    renderArchiveList("completed-list", "completed-count", completed, (item)=>{ item.done = false; }, "No completed items.");
+    renderArchiveList("archived-list", "archived-count", archived, (item)=>{ item.archived = false; }, "No archived items.");
+  }
+
   function render(){
     bindTopFields();
     renderTodayActions();
@@ -1154,11 +1296,12 @@
     renderGrid("grid-row3", data.row3);
     renderGrid("grid-row4", data.row4);
     renderGrid("grid-row5", data.row5);
+    renderArchiveSections();
   }
 
   function collectOpenItems(items, sectionTitle, out){
     (items || []).forEach(item=>{
-      if(!item.done){
+      if(!item.done && !item.archived){
         out.push({ text: item.text, owner: item.owner || null, due: item.due || null, section: sectionTitle });
       }
       if(item.sub && item.sub.length){ collectOpenItems(item.sub, sectionTitle, out); }

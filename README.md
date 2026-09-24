@@ -6,6 +6,13 @@ so the whole team sees the same board. Open tabs poll every 5 seconds and pick
 up teammates' edits automatically (it pauses refreshing while you're actively
 typing in a field, so it won't interrupt you).
 
+Checking an item's checkbox marks it **completed**; the 🗄 icon (visible on
+hover, next to the sub-item/delete icons) marks it **archived**. Either way,
+the item disappears from its card and moves into one of the two expandable
+"Completed Items" / "Archived Items" sections at the bottom of the board.
+Each entry there has a **Reopen** button that puts it right back where it
+came from.
+
 ## How it works
 
 - `public/index.html` — the dashboard UI (unchanged look/behavior from the
