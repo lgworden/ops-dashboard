@@ -582,6 +582,8 @@
       <div class="section-divider">Initiative Updates</div>
       <div class="grid" id="grid-row4"></div>
       <div class="grid" id="grid-row5"></div>
+      <div class="section-divider">Sub Market Leads</div>
+      <div class="grid" id="grid-row6"></div>
 
       <div class="archive-section">
         <details class="archive-details" id="completed-details">
@@ -647,8 +649,28 @@
     if(item.archived === undefined) item.archived = false;
     if(item.sub){ item.sub.forEach(ensureItemDefaults); }
   }
+  function ensureSubMarketLeadsCategory(d){
+    if(!d.row6){
+      d.row6 = [
+        { id: uid(), title: "Benefit Admin (Amina)", tone: "teal", items: [] },
+        { id: uid(), title: "Provider and Claims (Barton)", tone: "teal", items: [] },
+        { id: uid(), title: "Child Care (Amina)", tone: "teal", items: [] },
+        { id: uid(), title: "Labor & Workforce (Carol)", tone: "teal", items: [] },
+        { id: uid(), title: "Identity Fraud (Carol)", tone: "teal", items: [] },
+        { id: uid(), title: "Transportation (Lauren)", tone: "teal", items: [] },
+        { id: uid(), title: "ERP (Lauren)", tone: "teal", items: [] }
+      ];
+    }
+  }
+  function ensureTechToneGreen(d){
+    (d.row5 || []).forEach(section=>{
+      if(/^tech/i.test(section.title)){ section.tone = "green"; }
+    });
+  }
   function migrateData(d){
-    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+    ensureSubMarketLeadsCategory(d);
+    ensureTechToneGreen(d);
+    ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (d[rowKey]||[]).forEach(section=>{
         (section.items||[]).forEach(ensureItemDefaults);
       });
@@ -791,12 +813,21 @@
           ]
         },
         {
-          id: uid(), title: "Tech (XX)", tone: "blue",
+          id: uid(), title: "Tech (XX)", tone: "green",
           items: [
             {id:uid(), text:"Xx", done:false, due:null, createdAt:"2026-09-21", sub:[]},
             {id:uid(), text:"Xx", done:false, due:null, createdAt:"2026-09-21", sub:[]}
           ]
         }
+      ],
+      row6: [
+        { id: uid(), title: "Benefit Admin (Amina)", tone: "teal", items: [] },
+        { id: uid(), title: "Provider and Claims (Barton)", tone: "teal", items: [] },
+        { id: uid(), title: "Child Care (Amina)", tone: "teal", items: [] },
+        { id: uid(), title: "Labor & Workforce (Carol)", tone: "teal", items: [] },
+        { id: uid(), title: "Identity Fraud (Carol)", tone: "teal", items: [] },
+        { id: uid(), title: "Transportation (Lauren)", tone: "teal", items: [] },
+        { id: uid(), title: "ERP (Lauren)", tone: "teal", items: [] }
       ]
     };
   }
@@ -889,7 +920,7 @@
       if(json && json.data){
         data = json.data;
         migrateData(data);
-        setStatus("Synced — shared with your team");
+        await saveData();
       } else {
         data = defaultData();
         await saveData();
@@ -1191,7 +1222,7 @@
     const container = document.getElementById("today-actions");
     const today = todayISO();
     const items = [];
-    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+    ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (data[rowKey] || []).forEach(section=>{ collectDueToday(section.items, today, items); });
     });
 
@@ -1278,7 +1309,7 @@
   function renderArchiveSections(){
     const completed = [];
     const archived = [];
-    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+    ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (data[rowKey] || []).forEach(section=>{
         collectCompleted(section.items, section.title, completed);
         collectArchived(section.items, section.title, archived);
@@ -1296,6 +1327,7 @@
     renderGrid("grid-row3", data.row3);
     renderGrid("grid-row4", data.row4);
     renderGrid("grid-row5", data.row5);
+    renderGrid("grid-row6", data.row6);
     renderArchiveSections();
   }
 
@@ -1310,7 +1342,7 @@
 
   function getExportableItems(){
     const out = [];
-    ['row1','row2','row3','row4','row5'].forEach(rowKey=>{
+    ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (data[rowKey] || []).forEach(section=>{ collectOpenItems(section.items, section.title, out); });
     });
     return out;
