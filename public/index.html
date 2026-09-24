@@ -667,8 +667,54 @@
       if(/^tech/i.test(section.title)){ section.tone = "green"; }
     });
   }
+  function ensureCallActionItems(d){
+    const plan = [
+      { section: "Benefit Admin (Amina)", items: [
+        { text: "Develop Tennessee option-year contracting alternatives", owner: "Amina" },
+        { text: "Build a PERM account activation strategy", owner: "Amina and Jim" },
+        { text: "Finalize the WAF placemat and share the model", owner: "Amina/Josh" }
+      ]},
+      { section: "Provider and Claims (Barton)", items: [
+        { text: "Connect with the Provider & Claims team on Virginia progress/opportunity", owner: "Barton/Jamia" },
+        { text: "Reassess the Virginia scope and pricing using Iowa lessons", owner: "Barton/Lauren/Jamia" },
+        { text: "Finalize Iowa scope and pricing, and lessons learned debrief after completion", owner: "Barton/Lauren/Derek/Jamia" },
+        { text: "Schedule a debrief on Indiana and lessons learned", owner: "Barton" },
+        { text: "Connect with Matt Mardorf and Amanda Harris to determine demand for provider revalidation", owner: "Barton" }
+      ]},
+      { section: "Child Care (Amina)", items: [
+        { text: "Set up a meeting on the FWA product build, incl. cyber team", owner: "Amina" }
+      ]},
+      { section: "Labor & Workforce (Carol)", items: [
+        { text: "Follow up with Wisconsin and other priority accounts and conversations from NASWA", owner: "Carol" },
+        { text: "Define Labor Analytics Roadmap and Product Strategy", owner: "Carol" }
+      ]},
+      { section: "Identity Fraud (Carol)", items: [
+        { text: "Confirm Bhaskar for the Identity Fraud workshop next week", owner: "Carol" }
+      ]},
+      { section: "Transportation (Lauren)", items: [
+        { text: "Identify state footprint to guide transportation strategy", owner: "Lauren" }
+      ]},
+      { section: "ERP (Lauren)", items: [
+        { text: "Send Jamia ERP education materials that were circulated to the account", owner: "Lauren" },
+        { text: "Share ERP footprint analysis", owner: "Lauren" },
+        { text: "Finalize Orange County client expectations", owner: "Lauren" },
+        { text: "Reclassify the Orange County opportunity as sold/unfunded", owner: "Lauren" }
+      ]}
+    ];
+    plan.forEach(({section, items})=>{
+      const target = (d.row6 || []).find(s => s.title === section);
+      if(!target) return;
+      items.forEach(({text, owner})=>{
+        const exists = target.items.some(i => i.text === text);
+        if(!exists){
+          target.items.push({id:uid(), text, done:false, due:null, owner, archived:false, createdAt:todayISO(), sub:[]});
+        }
+      });
+    });
+  }
   function migrateData(d){
     ensureSubMarketLeadsCategory(d);
+    ensureCallActionItems(d);
     ensureTechToneGreen(d);
     ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (d[rowKey]||[]).forEach(section=>{
@@ -821,13 +867,58 @@
         }
       ],
       row6: [
-        { id: uid(), title: "Benefit Admin (Amina)", tone: "teal", items: [] },
-        { id: uid(), title: "Provider and Claims (Barton)", tone: "teal", items: [] },
-        { id: uid(), title: "Child Care (Amina)", tone: "teal", items: [] },
-        { id: uid(), title: "Labor & Workforce (Carol)", tone: "teal", items: [] },
-        { id: uid(), title: "Identity Fraud (Carol)", tone: "teal", items: [] },
-        { id: uid(), title: "Transportation (Lauren)", tone: "teal", items: [] },
-        { id: uid(), title: "ERP (Lauren)", tone: "teal", items: [] }
+        {
+          id: uid(), title: "Benefit Admin (Amina)", tone: "teal",
+          items: [
+            {id:uid(), text:"Develop Tennessee option-year contracting alternatives", done:false, due:null, owner:"Amina", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Build a PERM account activation strategy", done:false, due:null, owner:"Amina and Jim", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Finalize the WAF placemat and share the model", done:false, due:null, owner:"Amina/Josh", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "Provider and Claims (Barton)", tone: "teal",
+          items: [
+            {id:uid(), text:"Connect with the Provider & Claims team on Virginia progress/opportunity", done:false, due:null, owner:"Barton/Jamia", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Reassess the Virginia scope and pricing using Iowa lessons", done:false, due:null, owner:"Barton/Lauren/Jamia", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Finalize Iowa scope and pricing, and lessons learned debrief after completion", done:false, due:null, owner:"Barton/Lauren/Derek/Jamia", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Schedule a debrief on Indiana and lessons learned", done:false, due:null, owner:"Barton", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Connect with Matt Mardorf and Amanda Harris to determine demand for provider revalidation", done:false, due:null, owner:"Barton", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "Child Care (Amina)", tone: "teal",
+          items: [
+            {id:uid(), text:"Set up a meeting on the FWA product build, incl. cyber team", done:false, due:null, owner:"Amina", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "Labor & Workforce (Carol)", tone: "teal",
+          items: [
+            {id:uid(), text:"Follow up with Wisconsin and other priority accounts and conversations from NASWA", done:false, due:null, owner:"Carol", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Define Labor Analytics Roadmap and Product Strategy", done:false, due:null, owner:"Carol", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "Identity Fraud (Carol)", tone: "teal",
+          items: [
+            {id:uid(), text:"Confirm Bhaskar for the Identity Fraud workshop next week", done:false, due:null, owner:"Carol", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "Transportation (Lauren)", tone: "teal",
+          items: [
+            {id:uid(), text:"Identify state footprint to guide transportation strategy", done:false, due:null, owner:"Lauren", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        },
+        {
+          id: uid(), title: "ERP (Lauren)", tone: "teal",
+          items: [
+            {id:uid(), text:"Send Jamia ERP education materials that were circulated to the account", done:false, due:null, owner:"Lauren", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Share ERP footprint analysis", done:false, due:null, owner:"Lauren", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Finalize Orange County client expectations", done:false, due:null, owner:"Lauren", archived:false, createdAt:"2026-09-24", sub:[]},
+            {id:uid(), text:"Reclassify the Orange County opportunity as sold/unfunded", done:false, due:null, owner:"Lauren", archived:false, createdAt:"2026-09-24", sub:[]}
+          ]
+        }
       ]
     };
   }
