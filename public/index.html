@@ -712,10 +712,21 @@
       });
     });
   }
+  function ensureInitiativeOrder(d){
+    const order = ["GTM", "Pipeline", "Labs", "Tech", "GPS Growth Plays", "Policy"];
+    const all = [...(d.row4 || []), ...(d.row5 || [])];
+    const matched = order.map(name => all.find(s => s.title && s.title.toLowerCase().startsWith(name.toLowerCase())));
+    if(matched.some(s => !s)) return;
+    const matchedSet = new Set(matched);
+    const leftover = all.filter(s => !matchedSet.has(s));
+    d.row4 = [matched[0], matched[1], matched[2]];
+    d.row5 = [matched[3], matched[4], matched[5], ...leftover];
+  }
   function migrateData(d){
     ensureSubMarketLeadsCategory(d);
     ensureCallActionItems(d);
     ensureTechToneGreen(d);
+    ensureInitiativeOrder(d);
     ['row1','row2','row3','row4','row5','row6'].forEach(rowKey=>{
       (d[rowKey]||[]).forEach(section=>{
         (section.items||[]).forEach(ensureItemDefaults);
