@@ -253,6 +253,18 @@ function formatDateLong(ymd) {
   return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
+function stripHtml(html) {
+  return String(html || "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
 function flattenSnapshotItems(items, depth, out) {
   (items || []).forEach((item) => {
     const meta = [];
@@ -260,7 +272,7 @@ function flattenSnapshotItems(items, depth, out) {
     if (item.due) meta.push("Due: " + item.due);
     const status = item.archived ? " [Archived]" : item.done ? " [Completed]" : "";
     const metaStr = meta.length ? " (" + meta.join(", ") + ")" : "";
-    out.push({ text: item.text + metaStr + status, depth });
+    out.push({ text: stripHtml(item.text) + metaStr + status, depth });
     if (item.sub && item.sub.length) flattenSnapshotItems(item.sub, depth + 1, out);
   });
 }

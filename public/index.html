@@ -303,6 +303,10 @@
   .add-sub-btn:hover{color:var(--teal-deep);background:#fff;}
   .archive-btn{color:var(--muted);}
   .archive-btn:hover{color:var(--teal-deep);background:#fff;}
+  .move-btn{color:var(--muted);}
+  .move-btn:hover{color:var(--teal-deep);background:#fff;}
+  .move-btn:disabled{opacity:.35;cursor:default;}
+  .move-btn:disabled:hover{background:transparent;color:var(--muted);}
 
   .add-item-btn{
     align-self:flex-start;
@@ -531,6 +535,37 @@
     z-index:1100;
     font-family:"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
+
+  .format-toolbar{
+    position:fixed;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    background:var(--teal-deep);
+    border-radius:8px;
+    padding:5px 6px;
+    box-shadow:0 6px 18px rgba(0,0,0,.3);
+    z-index:1200;
+  }
+  .format-toolbar button{
+    border:none;
+    background:transparent;
+    color:#fff;
+    cursor:pointer;
+    border-radius:4px;
+    padding:3px 7px;
+    font-size:13px;
+    line-height:1;
+  }
+  .format-toolbar button:hover{background:rgba(255,255,255,.2);}
+  .format-divider{width:1px;align-self:stretch;background:rgba(255,255,255,.3);margin:0 2px;}
+  .format-swatch{
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    padding:0;
+    border:1.5px solid rgba(255,255,255,.6);
+  }
 </style>
 
 <div id="login-overlay" class="modal-overlay">
@@ -544,6 +579,16 @@
   </div>
 </div>
 <div id="toast"></div>
+
+<div id="format-toolbar" class="format-toolbar" style="display:none;">
+  <button type="button" data-format="bold" title="Bold"><b>B</b></button>
+  <span class="format-divider"></span>
+  <button type="button" class="format-swatch" data-color="#16323a" title="Default" style="background:#16323a;"></button>
+  <button type="button" class="format-swatch" data-color="#c0392b" title="Red" style="background:#c0392b;"></button>
+  <button type="button" class="format-swatch" data-color="#5b8fc7" title="Blue" style="background:#5b8fc7;"></button>
+  <button type="button" class="format-swatch" data-color="#8bae46" title="Green" style="background:#8bae46;"></button>
+  <button type="button" class="format-swatch" data-color="#c88f10" title="Gold" style="background:#c88f10;"></button>
+</div>
 
 <div id="export-overlay" class="modal-overlay" style="display:none;">
   <div class="modal-card export-card">
@@ -643,6 +688,45 @@
 (function(){
 
   function uid(){ return Math.random().toString(36).slice(2,10); }
+
+  const FORMAT_ALLOWED_TAGS = new Set(["B","STRONG","I","EM","SPAN","BR"]);
+  function sanitizeFormattedNode(node){
+    Array.from(node.childNodes).forEach(child=>{
+      if(child.nodeType === Node.ELEMENT_NODE){
+        if(!FORMAT_ALLOWED_TAGS.has(child.tagName)){
+          while(child.firstChild) node.insertBefore(child.firstChild, child);
+          node.removeChild(child);
+          return;
+        }
+        Array.from(child.attributes).forEach(attr=>{
+          if(child.tagName === "SPAN" && attr.name === "style"){
+            const m = /color:\s*(#[0-9a-fA-F]{3,8}|rgb\([\d,\s]+\))/.exec(attr.value);
+            if(m){ child.setAttribute("style", "color:" + m[1]); }
+            else { child.removeAttribute("style"); }
+          } else {
+            child.removeAttribute(attr.name);
+          }
+        });
+        sanitizeFormattedNode(child);
+      } else if(child.nodeType !== Node.TEXT_NODE){
+        node.removeChild(child);
+      }
+    });
+  }
+  function sanitizeFormattedHTML(html){
+    const template = document.createElement("template");
+    template.innerHTML = String(html == null ? "" : html);
+    sanitizeFormattedNode(template.content);
+    return template.innerHTML;
+  }
+  function htmlToPlainText(html){
+    const div = document.createElement("div");
+    div.innerHTML = String(html == null ? "" : html);
+    return div.textContent || "";
+  }
+  function escapeHtml(str){
+    return String(str == null ? "" : str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
 
   function todayISO(){
     const d = new Date();
@@ -993,6 +1077,64 @@
     }, duration || 2500);
   }
 
+  const formatToolbar = document.getElementById("format-toolbar");
+  let activeFormatText = null;
+  let activeFormatItem = null;
+
+  function hideFormatToolbar(){
+    formatToolbar.style.display = "none";
+    activeFormatText = null;
+    activeFormatItem = null;
+  }
+
+  function maybeShowFormatToolbar(textEl, item){
+    const sel = window.getSelection();
+    if(!sel || sel.rangeCount === 0 || sel.isCollapsed || !textEl.contains(sel.anchorNode)){
+      hideFormatToolbar();
+      return;
+    }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if(rect.width === 0 && rect.height === 0){ hideFormatToolbar(); return; }
+    activeFormatText = textEl;
+    activeFormatItem = item;
+    formatToolbar.style.display = "flex";
+    const toolbarRect = formatToolbar.getBoundingClientRect();
+    let top = rect.top - toolbarRect.height - 8;
+    if(top < 4) top = rect.bottom + 8;
+    let left = rect.left + (rect.width / 2) - (toolbarRect.width / 2);
+    left = Math.max(4, Math.min(left, window.innerWidth - toolbarRect.width - 4));
+    formatToolbar.style.top = top + "px";
+    formatToolbar.style.left = left + "px";
+  }
+
+  function commitActiveFormatting(){
+    if(!activeFormatText || !activeFormatItem) return;
+    const html = sanitizeFormattedHTML(activeFormatText.innerHTML);
+    activeFormatItem.text = html;
+    activeFormatText.innerHTML = html;
+    scheduleSave();
+  }
+
+  formatToolbar.addEventListener("mousedown", (e)=>{ e.preventDefault(); });
+  formatToolbar.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if(!btn || !activeFormatText) return;
+    activeFormatText.focus();
+    if(btn.dataset.format === "bold"){
+      document.execCommand("bold");
+    } else if(btn.classList.contains("format-swatch")){
+      document.execCommand("styleWithCSS", false, true);
+      document.execCommand("foreColor", false, btn.dataset.color);
+      document.execCommand("styleWithCSS", false, false);
+    }
+    commitActiveFormatting();
+  });
+  document.addEventListener("mousedown", (e)=>{
+    if(formatToolbar.contains(e.target)) return;
+    if(activeFormatText && activeFormatText.contains(e.target)) return;
+    hideFormatToolbar();
+  });
+
   function startPolling(){
     if(pollTimer) return;
     pollTimer = setInterval(pollForUpdates, 5000);
@@ -1109,7 +1251,7 @@
     }catch(e){ /* transient network error, ignore */ }
   }
 
-  function makeItemRow(item, onDeleted){
+  function makeItemRow(item, items, idx){
     const li = document.createElement("li");
     li.className = "item-row";
     li.dataset.id = item.id;
@@ -1130,17 +1272,21 @@
     const text = document.createElement("div");
     text.className = "item-text";
     text.contentEditable = "true";
-    text.textContent = item.text;
+    text.innerHTML = sanitizeFormattedHTML(item.text);
     text.addEventListener("blur", ()=>{
-      const val = text.textContent.trim();
-      if(val === ""){ return; }
-      item.text = val;
-      text.textContent = item.text;
+      hideFormatToolbar();
+      const plain = text.textContent.trim();
+      if(plain === ""){ text.innerHTML = sanitizeFormattedHTML(item.text); return; }
+      const html = sanitizeFormattedHTML(text.innerHTML);
+      item.text = html;
+      text.innerHTML = html;
       scheduleSave();
     });
     text.addEventListener("keydown", (e)=>{
       if(e.key === "Enter"){ e.preventDefault(); text.blur(); }
     });
+    text.addEventListener("mouseup", ()=>{ maybeShowFormatToolbar(text, item); });
+    text.addEventListener("keyup", ()=>{ maybeShowFormatToolbar(text, item); });
 
     const meta = document.createElement("div");
     meta.className = "item-meta";
@@ -1224,6 +1370,26 @@
     const actions = document.createElement("div");
     actions.className = "row-actions";
 
+    const upBtn = document.createElement("button");
+    upBtn.className = "icon-btn move-btn";
+    upBtn.title = "Move up";
+    upBtn.textContent = "▲";
+    const upTarget = findAdjacentVisibleIndex(items, idx, -1);
+    upBtn.disabled = upTarget === -1;
+    upBtn.addEventListener("click", ()=>{
+      if(moveItemInList(items, idx, -1)){ scheduleSave(); render(); }
+    });
+
+    const downBtn = document.createElement("button");
+    downBtn.className = "icon-btn move-btn";
+    downBtn.title = "Move down";
+    downBtn.textContent = "▼";
+    const downTarget = findAdjacentVisibleIndex(items, idx, 1);
+    downBtn.disabled = downTarget === -1;
+    downBtn.addEventListener("click", ()=>{
+      if(moveItemInList(items, idx, 1)){ scheduleSave(); render(); }
+    });
+
     const addSubBtn = document.createElement("button");
     addSubBtn.className = "icon-btn add-sub-btn";
     addSubBtn.title = "Add sub-item";
@@ -1250,11 +1416,13 @@
     delBtn.title = "Delete";
     delBtn.textContent = "✕";
     delBtn.addEventListener("click", ()=>{
-      onDeleted();
+      items.splice(idx, 1);
       scheduleSave();
       render();
     });
 
+    actions.appendChild(upBtn);
+    actions.appendChild(downBtn);
     actions.appendChild(addSubBtn);
     actions.appendChild(archiveBtn);
     actions.appendChild(delBtn);
@@ -1265,13 +1433,30 @@
     return li;
   }
 
+  function findAdjacentVisibleIndex(items, idx, dir){
+    let i = idx + dir;
+    while(i >= 0 && i < items.length){
+      if(!items[i].done && !items[i].archived){ return i; }
+      i += dir;
+    }
+    return -1;
+  }
+  function moveItemInList(items, idx, dir){
+    const targetIdx = findAdjacentVisibleIndex(items, idx, dir);
+    if(targetIdx === -1) return false;
+    const tmp = items[idx];
+    items[idx] = items[targetIdx];
+    items[targetIdx] = tmp;
+    return true;
+  }
+
   function buildItemList(items, depth){
     depth = depth || 0;
     const ul = document.createElement("ul");
     ul.className = "item-list" + (depth > 0 ? " sub" : "");
     items.forEach((item, idx)=>{
       if(item.done || item.archived){ return; }
-      const row = makeItemRow(item, ()=>{ items.splice(idx,1); });
+      const row = makeItemRow(item, items, idx);
       ul.appendChild(row);
       if(item.sub && item.sub.length){
         const subList = buildItemList(item.sub, depth + 1);
@@ -1372,7 +1557,7 @@
     ul.className = "today-list";
     items.forEach(item=>{
       const li = document.createElement("li");
-      li.textContent = item.owner ? `${item.text} — ${item.owner}` : item.text;
+      li.innerHTML = sanitizeFormattedHTML(item.text) + (item.owner ? " — " + escapeHtml(item.owner) : "");
       ul.appendChild(li);
     });
     container.appendChild(ul);
@@ -1412,7 +1597,7 @@
 
       const text = document.createElement("div");
       text.className = "archive-row-text" + (item.done ? " is-done" : "");
-      text.textContent = item.text;
+      text.innerHTML = sanitizeFormattedHTML(item.text);
 
       const meta = document.createElement("div");
       meta.className = "archive-row-meta";
@@ -1510,7 +1695,7 @@
       meta.push(it.owner);
     }
     meta.push(it.section);
-    return it.text + " (" + meta.join(" · ") + ")";
+    return htmlToPlainText(it.text) + " (" + meta.join(" · ") + ")";
   }
 
   function getExportMode(){

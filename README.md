@@ -13,6 +13,19 @@ the item disappears from its card and moves into one of the two expandable
 Each entry there has a **Reopen** button that puts it right back where it
 came from.
 
+Select part of an item's text to bring up a small floating toolbar with
+**Bold** and five color swatches — formats just the selected text, like a
+basic rich-text editor. The ▲▼ icons in each item's row actions move it up
+or down within its own list (skipping over any hidden completed/archived
+items, so you only ever reorder what you can actually see).
+
+Formatted text is stored as a small, explicitly-allowed-list of HTML (`<b>`,
+`<span style="color:...">`, etc.) and is sanitized both when typed and again
+before being saved — any other tag, attribute, or non-hex/rgb color value is
+stripped out, including from data edited directly through the API. Word/email
+exports and the historical snapshot docs always show plain text (formatting
+tags stripped), since those are plain-text destinations.
+
 ## How it works
 
 - `public/index.html` — the dashboard UI (unchanged look/behavior from the
