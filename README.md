@@ -111,6 +111,29 @@ by due date. From there you can:
   (Outlook included) since `mailto:` links have a length limit — the Word
   download always has the complete list regardless of size.
 
+## Historical snapshots
+
+Every Friday at 11:59 PM Eastern, the server automatically captures the
+entire board's state and stores it (`dashboard_snapshots` in Postgres, or
+`snapshots.local.json` locally) keyed by that week's Monday date. This runs
+in-process via `node-cron` — there's no separate worker or external cron
+service to configure, but it only fires if the app happens to be running at
+that exact minute. If Railway restarts or redeploys the app right at 11:59
+PM Friday ET, that week's snapshot gets skipped (there's no catch-up/backfill
+logic), so don't rely on it for a legally/financially critical audit trail
+without being aware of that gap.
+
+The **"View History"** button (footer bar, left of "Export Action Items")
+opens a modal listing every captured week ("Week of September 21, 2026", by
+its Monday date). Pick one and click **Download Snapshot (.docx)** to get a
+full, read-only Word document of the entire board exactly as it looked at
+that snapshot time — every category, card, item, owner, due date, and
+completed/archived status, generated server-side via `GET
+/api/snapshots/:weekStart/docx`.
+
+To change the capture schedule or timezone, edit the `cron.schedule(...)`
+call and `SNAPSHOT_TIMEZONE` constant near the bottom of `server.js`.
+
 ## Notes
 
 - The "Reset to original" button in the footer resets the shared dashboard

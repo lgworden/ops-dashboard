@@ -496,6 +496,23 @@
   .export-actions button:disabled{opacity:.6;cursor:default;}
   .export-hint{font-size:11px;color:var(--muted);margin-top:8px;}
 
+  .history-card{max-width:420px;max-height:80vh;overflow-y:auto;display:flex;flex-direction:column;}
+  .history-hint{font-size:12px;color:var(--muted);margin:4px 0 12px;}
+  .history-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:320px;overflow-y:auto;}
+  .history-option{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .history-option:hover{background:var(--teal-tint);}
+  .history-option input{accent-color:var(--teal);}
+
   #toast{
     position:fixed;
     top:20px;
@@ -544,6 +561,20 @@
       <button id="export-email-btn" type="button">Open in Email</button>
     </div>
     <div class="export-hint">Only open (not checked off) items are included. Very long lists may get cut off in some email apps — the Word download always has the full list.</div>
+  </div>
+</div>
+
+<div id="history-overlay" class="modal-overlay" style="display:none;">
+  <div class="modal-card history-card">
+    <div class="modal-header">
+      <h2>Historical Snapshots</h2>
+      <button id="history-close-btn" class="modal-close-btn" type="button" title="Close">✕</button>
+    </div>
+    <p class="history-hint">A snapshot of the whole board is captured automatically every Friday at 11:59 PM ET. Pick a week, then download it.</p>
+    <div class="history-list" id="history-list"></div>
+    <div class="export-actions">
+      <button id="history-download-btn" type="button" disabled>Download Snapshot (.docx)</button>
+    </div>
   </div>
 </div>
 
@@ -599,6 +630,7 @@
       <div class="footer-bar">
         <span id="status-text">Loading…</span>
         <div style="display:flex;gap:8px;">
+          <button id="history-btn" type="button">View History</button>
           <button id="export-btn" type="button">Export Action Items</button>
           <button id="reset-btn">Reset to original</button>
         </div>
@@ -1582,6 +1614,65 @@
       exportWordBtn.disabled = false;
       exportWordBtn.textContent = originalText;
     }
+  });
+
+  const historyOverlay = document.getElementById("history-overlay");
+  const historyBtn = document.getElementById("history-btn");
+  const historyCloseBtn = document.getElementById("history-close-btn");
+  const historyListEl = document.getElementById("history-list");
+  const historyDownloadBtn = document.getElementById("history-download-btn");
+
+  async function renderHistoryList(){
+    historyListEl.textContent = "Loading…";
+    historyDownloadBtn.disabled = true;
+    try{
+      const res = await fetch("/api/snapshots");
+      const body = await res.json();
+      const weeks = (body && body.weeks) || [];
+      historyListEl.innerHTML = "";
+      if(weeks.length === 0){
+        const empty = document.createElement("div");
+        empty.className = "today-empty";
+        empty.textContent = "No snapshots yet — the first automatic capture happens this Friday at 11:59 PM ET.";
+        historyListEl.appendChild(empty);
+        return;
+      }
+      weeks.forEach(w=>{
+        const label = document.createElement("label");
+        label.className = "history-option";
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "history-week";
+        radio.value = w.weekStart;
+        radio.addEventListener("change", ()=>{ historyDownloadBtn.disabled = false; });
+        const span = document.createElement("span");
+        span.textContent = "Week of " + formatFullDate(w.weekStart);
+        label.appendChild(radio);
+        label.appendChild(span);
+        historyListEl.appendChild(label);
+      });
+    }catch(e){
+      historyListEl.innerHTML = "";
+      const err = document.createElement("div");
+      err.className = "today-empty";
+      err.textContent = "Couldn't load snapshots. Try again.";
+      historyListEl.appendChild(err);
+    }
+  }
+
+  historyBtn.addEventListener("click", ()=>{
+    historyDownloadBtn.disabled = true;
+    renderHistoryList();
+    historyOverlay.style.display = "flex";
+  });
+  historyCloseBtn.addEventListener("click", ()=>{ historyOverlay.style.display = "none"; });
+  historyOverlay.addEventListener("click", (e)=>{
+    if(e.target === historyOverlay){ historyOverlay.style.display = "none"; }
+  });
+  historyDownloadBtn.addEventListener("click", ()=>{
+    const checked = historyListEl.querySelector('input[name="history-week"]:checked');
+    if(!checked) return;
+    window.location.href = `/api/snapshots/${checked.value}/docx`;
   });
 
   document.getElementById("reset-btn").addEventListener("click", async ()=>{
