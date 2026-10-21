@@ -113,16 +113,26 @@
   .lead-box .lead-name:hover{border-color:var(--muted);background:var(--teal-tint);}
 
   .priority-block{margin-bottom:20px;}
-  .priority-heading{
+  .priority-tabs{
+    display:flex;
+    gap:22px;
+    margin-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .priority-tab{
     font-size:12px;
     font-weight:700;
     letter-spacing:.1em;
-    color:var(--teal-deep);
-    padding-bottom:6px;
-    border-bottom:2px solid var(--teal-deep);
-    display:inline-block;
-    margin-bottom:10px;
+    color:var(--muted);
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    padding:0 0 8px;
+    margin-bottom:-1px;
+    cursor:pointer;
   }
+  .priority-tab:hover{color:var(--teal-deep);}
+  .priority-tab.active{color:var(--teal-deep);border-bottom-color:var(--teal-deep);}
   .priority-text{
     font-size:14px;
     color:var(--ink);
@@ -142,6 +152,15 @@
   }
   .today-list li{font-size:13px;color:var(--ink);}
   .today-empty{color:#b7a56b;font-size:13px;}
+
+  .links-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+  .link-row{display:flex;align-items:center;gap:8px;padding:2px 4px;border-radius:6px;}
+  .link-row:hover{background:var(--teal-tint);}
+  .link-label{font-size:13px;color:var(--ink);outline:none;cursor:text;}
+  .link-url{font-size:12px;color:var(--muted);outline:none;cursor:text;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .link-url:empty:before{content:"https://…";color:#b7a56b;}
+  .link-open-btn{color:var(--teal);text-decoration:none;font-size:13px;padding:2px 4px;border-radius:4px;}
+  .link-open-btn:hover{background:#fff;color:var(--teal-deep);}
 
   .grid{
     display:grid;
@@ -647,8 +666,12 @@
       </div>
 
       <div class="priority-block">
-        <div class="priority-heading">Today's Action Items</div>
+        <div class="priority-tabs">
+          <button type="button" class="priority-tab active" data-tab="today">Today's Action Items</button>
+          <button type="button" class="priority-tab" data-tab="links">Important Links</button>
+        </div>
         <div class="priority-text" id="today-actions"></div>
+        <div class="priority-text" id="important-links" style="display:none;"></div>
       </div>
 
       <div class="grid" id="grid-row1"></div>
@@ -765,6 +788,9 @@
     if(item.archived === undefined) item.archived = false;
     if(item.sub){ item.sub.forEach(ensureItemDefaults); }
   }
+  function ensureImportantLinks(d){
+    if(!d.importantLinks){ d.importantLinks = []; }
+  }
   function ensureSubMarketLeadsCategory(d){
     if(!d.row6){
       d.row6 = [
@@ -839,6 +865,7 @@
     d.row5 = [matched[3], matched[4], matched[5], ...leftover];
   }
   function migrateData(d){
+    ensureImportantLinks(d);
     ensureSubMarketLeadsCategory(d);
     ensureCallActionItems(d);
     ensureTechToneGreen(d);
@@ -856,6 +883,7 @@
       title: "Operations Work Plan Dashboard",
       week: "Week of Sept 21",
       lead: "Belle",
+      importantLinks: [],
       row1: [
         {
           id: uid(), title: "Discussion Items", tone: "gold",
@@ -1563,6 +1591,102 @@
     container.appendChild(ul);
   }
 
+  function makeLinkRow(link, idx){
+    const row = document.createElement("div");
+    row.className = "link-row";
+
+    const labelEl = document.createElement("span");
+    labelEl.className = "link-label";
+    labelEl.contentEditable = "true";
+    labelEl.textContent = link.text || "New link";
+    labelEl.addEventListener("blur", ()=>{
+      link.text = labelEl.textContent.trim() || "New link";
+      scheduleSave();
+    });
+    labelEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); labelEl.blur(); } });
+
+    const urlEl = document.createElement("span");
+    urlEl.className = "link-url";
+    urlEl.contentEditable = "true";
+    urlEl.textContent = link.url || "";
+    urlEl.addEventListener("blur", ()=>{
+      link.url = urlEl.textContent.trim();
+      scheduleSave();
+      render();
+    });
+    urlEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlEl.blur(); } });
+
+    const openBtn = document.createElement("a");
+    openBtn.className = "icon-btn link-open-btn";
+    openBtn.title = "Open link";
+    openBtn.textContent = "↗";
+    if(link.url){
+      openBtn.href = /^https?:\/\//i.test(link.url) ? link.url : ("https://" + link.url);
+      openBtn.target = "_blank";
+      openBtn.rel = "noopener noreferrer";
+    } else {
+      openBtn.style.visibility = "hidden";
+    }
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "icon-btn";
+    delBtn.title = "Delete";
+    delBtn.textContent = "✕";
+    delBtn.addEventListener("click", ()=>{
+      data.importantLinks.splice(idx, 1);
+      scheduleSave();
+      render();
+    });
+
+    row.appendChild(labelEl);
+    row.appendChild(urlEl);
+    row.appendChild(openBtn);
+    row.appendChild(delBtn);
+    return row;
+  }
+
+  function renderImportantLinks(){
+    const container = document.getElementById("important-links");
+    container.innerHTML = "";
+
+    const links = data.importantLinks || [];
+    if(links.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "today-empty";
+      empty.textContent = "No links added yet.";
+      container.appendChild(empty);
+    } else {
+      const list = document.createElement("div");
+      list.className = "links-list";
+      links.forEach((link, idx)=>{ list.appendChild(makeLinkRow(link, idx)); });
+      container.appendChild(list);
+    }
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "add-item-btn";
+    addBtn.textContent = "+ Add link";
+    addBtn.addEventListener("click", ()=>{
+      data.importantLinks = data.importantLinks || [];
+      data.importantLinks.push({id:uid(), text:"New link", url:""});
+      scheduleSave();
+      render();
+    });
+    container.appendChild(addBtn);
+  }
+
+  function bindPriorityTabs(){
+    const tabs = document.querySelectorAll(".priority-tab");
+    const panels = { today: document.getElementById("today-actions"), links: document.getElementById("important-links") };
+    tabs.forEach(tab=>{
+      tab.addEventListener("click", ()=>{
+        tabs.forEach(t => t.classList.toggle("active", t === tab));
+        Object.keys(panels).forEach(key=>{
+          panels[key].style.display = (key === tab.dataset.tab) ? "" : "none";
+        });
+      });
+    });
+  }
+
   function collectCompleted(items, sectionTitle, out){
     (items || []).forEach(item=>{
       if(item.done && !item.archived){ out.push({ item, section: sectionTitle }); }
@@ -1641,6 +1765,7 @@
   function render(){
     bindTopFields();
     renderTodayActions();
+    renderImportantLinks();
     renderGrid("grid-row1", data.row1);
     renderGrid("grid-row2", data.row2);
     renderGrid("grid-row3", data.row3);
@@ -1866,6 +1991,8 @@
     await saveData();
     render();
   });
+
+  bindPriorityTabs();
 
   const savedEmail = getSavedEmail();
   if(savedEmail && EMAIL_RE.test(savedEmail)){
