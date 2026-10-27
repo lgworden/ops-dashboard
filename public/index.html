@@ -156,11 +156,23 @@
   .links-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
   .link-row{display:flex;align-items:center;gap:8px;padding:2px 4px;border-radius:6px;}
   .link-row:hover{background:var(--teal-tint);}
-  .link-label{font-size:13px;color:var(--ink);outline:none;cursor:text;}
-  .link-url{font-size:12px;color:var(--muted);outline:none;cursor:text;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .link-url:empty:before{content:"https://…";color:#b7a56b;}
-  .link-open-btn{color:var(--teal);text-decoration:none;font-size:13px;padding:2px 4px;border-radius:4px;}
+  .link-label{font-size:13px;font-weight:600;color:var(--teal);outline:none;cursor:text;}
+  .link-label:hover{text-decoration:underline;}
+  .link-url-input{
+    flex:1;
+    min-width:0;
+    font-size:12px;
+    color:var(--ink);
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:3px 6px;
+  }
+  .link-url-input:focus{outline:none;border-color:var(--teal-line);}
+  .link-open-btn{color:var(--teal);text-decoration:none;font-size:13px;padding:2px 4px;border-radius:4px;flex-shrink:0;}
   .link-open-btn:hover{background:#fff;color:var(--teal-deep);}
+  .link-edit-btn{color:var(--muted);flex-shrink:0;}
+  .link-edit-btn:hover{color:var(--teal-deep);background:#fff;}
 
   .grid{
     display:grid;
@@ -1591,24 +1603,18 @@
     container.appendChild(ul);
   }
 
-  function extractPastedUrl(e){
+  function extractPastedLink(e){
     const html = e.clipboardData && e.clipboardData.getData("text/html");
     if(html){
       const div = document.createElement("div");
       div.innerHTML = html;
       const anchor = div.querySelector("a[href]");
-      if(anchor && anchor.href){ return anchor.href; }
+      if(anchor && anchor.href){
+        return { url: anchor.href, text: anchor.textContent.trim() };
+      }
     }
-    return (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
-  }
-
-  function placeCursorAtEnd(el){
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+    const text = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+    return { url: text.trim(), text: "" };
   }
 
   function makeLinkRow(link, idx){
@@ -1625,36 +1631,67 @@
     });
     labelEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); labelEl.blur(); } });
 
-    const urlEl = document.createElement("span");
-    urlEl.className = "link-url";
-    urlEl.contentEditable = "true";
-    urlEl.textContent = link.url || "";
-    urlEl.addEventListener("paste", (e)=>{
-      e.preventDefault();
-      urlEl.textContent = extractPastedUrl(e).trim();
-      placeCursorAtEnd(urlEl);
-    });
-    urlEl.addEventListener("blur", ()=>{
-      link.url = urlEl.textContent.trim();
-      scheduleSave();
-      render();
-    });
-    urlEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlEl.blur(); } });
+    const urlInput = document.createElement("input");
+    urlInput.type = "text";
+    urlInput.className = "link-url-input";
+    urlInput.placeholder = "https://…";
+    urlInput.value = link.url || "";
+    urlInput.style.display = link.url ? "none" : "inline-block";
 
     const openBtn = document.createElement("a");
     openBtn.className = "icon-btn link-open-btn";
     openBtn.title = "Open link";
     openBtn.textContent = "↗";
-    if(link.url){
-      openBtn.href = /^https?:\/\//i.test(link.url) ? link.url : ("https://" + link.url);
-      openBtn.target = "_blank";
-      openBtn.rel = "noopener noreferrer";
-    } else {
-      openBtn.style.visibility = "hidden";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "icon-btn link-edit-btn";
+    editBtn.type = "button";
+    editBtn.title = "Edit link URL";
+    editBtn.textContent = "✎";
+    editBtn.style.display = link.url ? "inline-block" : "none";
+    editBtn.addEventListener("click", ()=>{
+      editBtn.style.display = "none";
+      urlInput.style.display = "inline-block";
+      urlInput.focus();
+      urlInput.select();
+    });
+
+    function refreshOpenBtn(){
+      if(link.url){
+        openBtn.href = /^https?:\/\//i.test(link.url) ? link.url : ("https://" + link.url);
+        openBtn.target = "_blank";
+        openBtn.rel = "noopener noreferrer";
+        openBtn.style.visibility = "visible";
+      } else {
+        openBtn.removeAttribute("href");
+        openBtn.style.visibility = "hidden";
+      }
     }
+    refreshOpenBtn();
+
+    urlInput.addEventListener("paste", (e)=>{
+      e.preventDefault();
+      const { url, text } = extractPastedLink(e);
+      urlInput.value = url;
+      if(text && text !== url && (!link.text || link.text === "New link")){
+        link.text = text;
+        labelEl.textContent = text;
+      }
+    });
+    urlInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlInput.blur(); } });
+    urlInput.addEventListener("blur", ()=>{
+      link.url = urlInput.value.trim();
+      refreshOpenBtn();
+      if(link.url){
+        urlInput.style.display = "none";
+        editBtn.style.display = "inline-block";
+      }
+      scheduleSave();
+    });
 
     const delBtn = document.createElement("button");
     delBtn.className = "icon-btn";
+    delBtn.type = "button";
     delBtn.title = "Delete";
     delBtn.textContent = "✕";
     delBtn.addEventListener("click", ()=>{
@@ -1664,7 +1701,8 @@
     });
 
     row.appendChild(labelEl);
-    row.appendChild(urlEl);
+    row.appendChild(urlInput);
+    row.appendChild(editBtn);
     row.appendChild(openBtn);
     row.appendChild(delBtn);
     return row;
