@@ -156,8 +156,21 @@
   .links-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
   .link-row{display:flex;align-items:center;gap:8px;padding:2px 4px;border-radius:6px;}
   .link-row:hover{background:var(--teal-tint);}
-  .link-label{font-size:13px;font-weight:600;color:var(--teal);outline:none;cursor:text;}
-  .link-label:hover{text-decoration:underline;}
+  .link-label{font-size:13px;font-weight:600;color:var(--teal);text-decoration:none;outline:none;cursor:pointer;}
+  .link-label:hover{text-decoration:underline;color:var(--teal-deep);}
+  .link-label.link-label-empty{color:var(--muted);font-weight:400;font-style:italic;cursor:default;}
+  .link-label.link-label-empty:hover{text-decoration:none;}
+  .link-name-input{
+    width:160px;
+    flex:0 0 auto;
+    font-size:13px;
+    color:var(--ink);
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:3px 6px;
+  }
+  .link-name-input:focus{outline:none;border-color:var(--teal-line);}
   .link-url-input{
     flex:1;
     min-width:0;
@@ -169,8 +182,6 @@
     padding:3px 6px;
   }
   .link-url-input:focus{outline:none;border-color:var(--teal-line);}
-  .link-open-btn{color:var(--teal);text-decoration:none;font-size:13px;padding:2px 4px;border-radius:4px;flex-shrink:0;}
-  .link-open-btn:hover{background:#fff;color:var(--teal-deep);}
   .link-edit-btn{color:var(--muted);flex-shrink:0;}
   .link-edit-btn:hover{color:var(--teal-deep);background:#fff;}
 
@@ -1621,73 +1632,24 @@
     const row = document.createElement("div");
     row.className = "link-row";
 
-    const labelEl = document.createElement("span");
-    labelEl.className = "link-label";
-    labelEl.contentEditable = "true";
-    labelEl.textContent = link.text || "New link";
-    labelEl.addEventListener("blur", ()=>{
-      link.text = labelEl.textContent.trim() || "New link";
-      scheduleSave();
-    });
-    labelEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); labelEl.blur(); } });
+    const displayLink = document.createElement("a");
+    displayLink.className = "link-label";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "link-name-input";
+    nameInput.placeholder = "Link name";
 
     const urlInput = document.createElement("input");
     urlInput.type = "text";
     urlInput.className = "link-url-input";
     urlInput.placeholder = "https://…";
-    urlInput.value = link.url || "";
-    urlInput.style.display = link.url ? "none" : "inline-block";
-
-    const openBtn = document.createElement("a");
-    openBtn.className = "icon-btn link-open-btn";
-    openBtn.title = "Open link";
-    openBtn.textContent = "↗";
 
     const editBtn = document.createElement("button");
     editBtn.className = "icon-btn link-edit-btn";
     editBtn.type = "button";
-    editBtn.title = "Edit link URL";
+    editBtn.title = "Edit link";
     editBtn.textContent = "✎";
-    editBtn.style.display = link.url ? "inline-block" : "none";
-    editBtn.addEventListener("click", ()=>{
-      editBtn.style.display = "none";
-      urlInput.style.display = "inline-block";
-      urlInput.focus();
-      urlInput.select();
-    });
-
-    function refreshOpenBtn(){
-      if(link.url){
-        openBtn.href = /^https?:\/\//i.test(link.url) ? link.url : ("https://" + link.url);
-        openBtn.target = "_blank";
-        openBtn.rel = "noopener noreferrer";
-        openBtn.style.visibility = "visible";
-      } else {
-        openBtn.removeAttribute("href");
-        openBtn.style.visibility = "hidden";
-      }
-    }
-    refreshOpenBtn();
-
-    urlInput.addEventListener("paste", (e)=>{
-      e.preventDefault();
-      const { url, text } = extractPastedLink(e);
-      urlInput.value = url;
-      if(text && text !== url && (!link.text || link.text === "New link")){
-        link.text = text;
-        labelEl.textContent = text;
-      }
-    });
-    urlInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlInput.blur(); } });
-    urlInput.addEventListener("blur", ()=>{
-      link.url = urlInput.value.trim();
-      refreshOpenBtn();
-      if(link.url){
-        urlInput.style.display = "none";
-        editBtn.style.display = "inline-block";
-      }
-      scheduleSave();
-    });
 
     const delBtn = document.createElement("button");
     delBtn.className = "icon-btn";
@@ -1700,10 +1662,82 @@
       render();
     });
 
-    row.appendChild(labelEl);
+    function refreshDisplayLink(){
+      displayLink.textContent = link.text || "New link";
+      if(link.url){
+        displayLink.href = /^https?:\/\//i.test(link.url) ? link.url : ("https://" + link.url);
+        displayLink.target = "_blank";
+        displayLink.rel = "noopener noreferrer";
+        displayLink.title = "Open " + link.url;
+        displayLink.classList.remove("link-label-empty");
+      } else {
+        displayLink.removeAttribute("href");
+        displayLink.title = "Click the pencil to add a URL";
+        displayLink.classList.add("link-label-empty");
+      }
+    }
+
+    function setEditing(editing){
+      displayLink.style.display = editing ? "none" : "inline";
+      nameInput.style.display = editing ? "inline-block" : "none";
+      urlInput.style.display = editing ? "inline-block" : "none";
+      editBtn.style.display = editing ? "none" : "inline-block";
+      if(editing){
+        nameInput.value = link.text === "New link" ? "" : (link.text || "");
+        urlInput.value = link.url || "";
+      }
+    }
+
+    function commit(){
+      link.text = nameInput.value.trim() || "New link";
+      link.url = urlInput.value.trim();
+      refreshDisplayLink();
+      scheduleSave();
+    }
+
+    function handleBlur(){
+      setTimeout(()=>{
+        if(document.activeElement === nameInput || document.activeElement === urlInput) return;
+        commit();
+        if(link.url){ setEditing(false); }
+      }, 0);
+    }
+    nameInput.addEventListener("blur", handleBlur);
+    urlInput.addEventListener("blur", handleBlur);
+    nameInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlInput.focus(); urlInput.select(); } });
+    urlInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); urlInput.blur(); } });
+
+    urlInput.addEventListener("paste", (e)=>{
+      e.preventDefault();
+      const { url, text } = extractPastedLink(e);
+      urlInput.value = url;
+      if(text && text !== url && !nameInput.value.trim()){
+        nameInput.value = text;
+      }
+    });
+
+    displayLink.addEventListener("click", (e)=>{
+      if(!link.url){
+        e.preventDefault();
+        setEditing(true);
+        nameInput.focus();
+        nameInput.select();
+      }
+    });
+
+    editBtn.addEventListener("click", ()=>{
+      setEditing(true);
+      nameInput.focus();
+      nameInput.select();
+    });
+
+    refreshDisplayLink();
+    setEditing(!link.url);
+
+    row.appendChild(displayLink);
+    row.appendChild(nameInput);
     row.appendChild(urlInput);
     row.appendChild(editBtn);
-    row.appendChild(openBtn);
     row.appendChild(delBtn);
     return row;
   }
