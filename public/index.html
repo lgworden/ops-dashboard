@@ -1591,6 +1591,26 @@
     container.appendChild(ul);
   }
 
+  function extractPastedUrl(e){
+    const html = e.clipboardData && e.clipboardData.getData("text/html");
+    if(html){
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      const anchor = div.querySelector("a[href]");
+      if(anchor && anchor.href){ return anchor.href; }
+    }
+    return (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+  }
+
+  function placeCursorAtEnd(el){
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   function makeLinkRow(link, idx){
     const row = document.createElement("div");
     row.className = "link-row";
@@ -1609,6 +1629,11 @@
     urlEl.className = "link-url";
     urlEl.contentEditable = "true";
     urlEl.textContent = link.url || "";
+    urlEl.addEventListener("paste", (e)=>{
+      e.preventDefault();
+      urlEl.textContent = extractPastedUrl(e).trim();
+      placeCursorAtEnd(urlEl);
+    });
     urlEl.addEventListener("blur", ()=>{
       link.url = urlEl.textContent.trim();
       scheduleSave();
